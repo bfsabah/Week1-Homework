@@ -1,0 +1,53 @@
+Creating a Secure VPC(Black) Diagram
+1- I create VPC named Secure-vpc with CIDR: 192.168.0.0/24
+2- I create 4 Subnets : - Name: test_public1 , AZ: Eu-1a , CIDR: 192.168.0.0/26
+                        - Name: test_public2 , AZ: Eu-1b , CIDR: 192.168.0.64/26
+                        - Name: test_private1 , AZ: Eu-1a , CIDR: 192.168.0.128/26
+                        - Name: test_private2 , AZ: Eu-1b , CIDR: 192.168.0.192/26
+3- I create Internet Gateway named: test-igw and atttact it to my secure-vpc.
+4- I create 2 Route Tables: - Test_public_RT :  a- Edit Route: Add Route: 0.0.0.0/0 Targer: Internet Gateway
+                                                b- Subnet Associations: Select Subnets test_public1 - test_public2
+                            - Test_private_RT:  a- We do not add any Routes.skip for now.
+                                                b= Subnet Associations: Select Subnets test_private1 - test_private2.
+5- We will create 3 NACL (1 for Bastian Hosts, 2 for NAT Gateway, 3 for Applciation Servers): - Test_public1    - Edit Inboud Rules:    110- CustomTCP - 22(SSH) - MyLocalPublicIP-Allow. 
+                                                                                                                - Edit Outboud Rules:   110- CustomTCP - 1024/65535 - MyLocalPublicIP-Allow.
+6- We will create our Bastion Security Group. - Name: bastion_sg -secure-vpc - Inbound Rules: CustomTCP - 22 - MyIP
+7- I will set my test_public1: Edit subnet settings: Enable auto-sigh public IPv4 adresses.
+8- We will create our Bastion Host: --> EC2 - Launch instance : Name:BastionHost - AmazonAMI - t2.Micro - KeyPair (create a new key pair): RSA - .pem :Create it
+                                                                Network settings: Edit : Select secure-vpc and test_public1 subnet,Auto Assign: Enabled - Sec.Group: bastian-sg --> Launch Instance.(Done)
+9- Lets check our connection: Goto Terminal or GitBash: goto Downloads Folder(That bastion.pem key pair is downloaded): ssh -i bastion.pem ec2-user@YourIP - YES to message.
+    If you see EC2 Logo then your connection works.(if its not "chmod 400 bastian.pem" {change permissions to readonly} then run the same code again)
+10- Go to Security Groups - bastian_sg : OutBound Rules : Add Rule CustomTCP - Port:22 - 192.169.0.0/24
+11- Go to VPC - NACL: test_public : -Inboud Rules: Add --> 120 - CustomTCP - Port:1024-65535 - 192.169.0.0/24(VPC-CIDR) --Save it
+                                    -Outbou Rules: Add --> 120 - CustomTCP - Port:22 - 192.169.0.0/24(VPC-CIDR) --Save it.
+12- Create a NACL: test_private :   -Inbound Rules Add --> 110 - CustomTCP - Port:22 - 192.169.0.0/24(VPC-CIDR) --Seve it.
+                                                       --> 120 - ICMP IPv4 -            0.0.0.0/0
+                                                       --> 130 - CustomTCP - Port:1024-65535 - 0.0.0.0/0 --Save it.
+                                    - Outbound Rules: Add   --> 110 - HTTPS - Port 443 - 0.0.0.0/0
+                                                            --> 120 - ICMP IPv4 - 0.0.0.0/0 --Save it.
+                                    - Subnet Associations: test_private1, test_private2
+13- We create a EC2 security Group: test_private_ec2 - select secure-vpc    - Inbound rules: CustomTCP-22 - 192.168.0.0/24(VPC CIDR)
+                                                                            - Outboud rules: HTTPS - 0.0.0.0/0
+                                                                                             ICMPIPv4 - 0.0.0.0/0
+14- We create new Instance in EC2: Launch Instance -->  Name:private_ec2 - AmazonAMI - t2.Micro - KeyPair bastian.pem
+                                                        Network settings: Edit : Select secure-vpc and test_private1 subnet,Auto Assign: Disabled(no internet) - Sec.Group: bastian-sg --> Launch Instance.(Done)
+15- Our Ec2 didnt connet to internet. How we can solve it?
+16- Goto Terminal:  ssh-add -K ~/Downloads/bastian.pem (Hit Enter) -Identity Added
+                    ssh -A ec2-user@{BastionHost IPv4-public-ip}
+                    TEST it: ip addr (Hit Enter) copy inet(192.168.0.36/26) search in Instances(BastionHost) or not)
+17- SSH to Private Instance:    Grap the Public IP
+                                Terminal:   ssh ec2-user@192.168.0.151 (hit enter) - Failed to connect
+                                Goto NACL: Outbound Rules: ADD : 130- CustomTCP:1024-65535 - 0.0.0.0/0 SAVE IT. 
+                                Terminal:   ssh ec2-user@192.168.0.151 (hit enter) - Done (you can check by ip addr)
+18- We dont have a Interenet connection so we must set it by NAT Gateway.
+19- Create a NAT Gateway: test_NAT, subnet: test_public2. Allocate Elastic IP(static IP).
+20- Create a NACL for NAT Gateway: test_NAT_public: - Inboud Rules: -110- HHTPS - 443 - 198.168.0.0/24
+                                                                    - 120 - CustomTCP -1024-65535 - 0.0.0.0/0
+                                                                    - 130 - ICMP - 0.0.0.0/0 Save Changes
+                                                    - Outbound Rules:   - 110 HTTPS - 0.0.0.0/0
+                                                                        - 120 CustomTCP - 1024-65535 - 192.168.0.0/24
+                                                                        - 130 ICMPIPv4 - 0.0.0.0/0
+                                                    - Subnet Associations: test_public2
+21- Goto Route Tables  : Test_private_RT : Edit Routes: 0.0.0.0/0 - NAT  SAVE Changes
+22 - Goto Terminal : Test it.   
+

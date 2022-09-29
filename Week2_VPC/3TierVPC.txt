@@ -1,0 +1,28 @@
+    3TierVPC_creation in AWS
+1- In my AWS account I will click VPC service and create a new VPC called 3Tier-vpc and give 10.99.0.0/16 as CIDR.
+2- I create 6 Subnets:  a- DMZ1public with AZ: eu-central-1a with CIDR: 10.99.1.0/24
+                        b- AppLayer1private with AZ: eu-central-1a with CIDR: 10.99.11.0/24
+                        c- DBLayer1private with AZ: eu-central-1a with CIDR:10.99.21.0/24
+                        d- DMZ2public with AZ: eu-central-1b with CIDR: 10.99.2.0/24
+                        e- AppLayer2private with AZ: eu-central-1b with CIDR: 10.99.12.0/24
+                        f- DBLAyer2private with AZ: eu-central-1b with CIDR: 10.99.22.0/24
+3- I create Internet Gateway: 3-tier-iwg and attach it to 3Tier-vpc.
+4- We create a NAT Gateway: give a name 3-tier-ngw and set it in DMZ2public and allocate Elastic IP(static) address.
+5- We create a Public Route Table:Public-RT :   - Edit routes --> Add Route Destination: 0.0.0.0/0 - Target: IGW  (because it is public
+                                                - Subnet Associations: Explicit subnet associations: Select DMZ1public and DMZ2public subnets.
+6- We create a Private Route Table: Private-RT: - Edit routes --> Add Route Destination: 0.0.0.0/0 - Target: NAT Gateway (because it is private)
+                                                - Subnet Associations: Explicit subnet associations: Select subnets DBLayer1private, DBLayer12rivate,AppLayer1private, AppLayer2private.
+7- We create NACL:  - DMZNACL with :    - Subnet Associations: DMZ1public and DMZ2public subnets
+                                        - Inboud Rules: 100 - Custom TCP - Port Range:80 - Source: 0.0.0.0/0
+                                                        110 - Custom TCP - Port Range:22  (SSH) - Source: 0.0.0.0/0
+                                                        120 - Custom TCP - Port Range:443 (HTTPS) - Source: 0.0.0.0/0
+                                        - Outbound rules: 100 - Custom TCP - Port Range: 1024-65535
+  
+                    - APPLayerNACL with:    - Subnet Associations: APPLayer1public, APPLayer2public
+                                            - Inboud Rules: 100 - HTTP - Port Range:80 - Source: 10.99.0.0/16 (VPC CIDR)
+                                                            110 - Custom TCP - Port Range:22 - Source: 10.99.0.0/16
+                                            - Outbound rules: 100 - Custom TCP - Port Range:1024-65535
+                    
+                    - DBLayerNACL with:     - Subnet Associations: DBLayer1public, DBLayer2public.
+                                            - Inboud Rules: 100 - MySQL - Port Range:3306 -Source:10.99.0.0/16
+                                            - Outbound rules: 100 - MySQL - Port Range:3306 -Source: 10.99.0.0/16
